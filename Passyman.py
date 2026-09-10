@@ -1,11 +1,8 @@
-# =======================================
-# Imports
-# =======================================
-
 import json 
 import base64
 import os
 import sys
+import subprocess
 
 from cryptography.fernet import Fernet
 from cryptography.fernet import InvalidToken
@@ -17,6 +14,7 @@ from getpass import getpass
 # =======================================
 # Encryption
 # =======================================
+
 def encrypt_credential(data, key):
     fernet = Fernet(key)
     json_data = json.dumps(data)
@@ -32,6 +30,7 @@ def decrypt_credential(data, key):
 # =======================================
 # Authentication
 # =======================================
+
 def verify_master_password():        
     while True:
         master_pass = getpass("Enter Master Password: ")
@@ -51,7 +50,7 @@ def verify_master_password():
             print("Incorrect Password")
             choice2 = input("Try again? Y/N: ").lower().strip()
             if choice2 not in ['y', 'yes']:
-                return False, None, None
+                return False, None, None           
 def generate_key():
     if os.path.exists("key.key"):
         with open("key.key", "rb") as key_file:
@@ -86,22 +85,62 @@ def load_salt():
         return salt
 
 # =======================================
-# Credential Management
+# Password Generator 
 # =======================================
-def add_credential(credentials, accname, website, username, password):
-    credential = {
-        "account_name": accname,
-        "website": website,
-        "username": username,
-        "password": password
-    }
-    credentials.append(credential)
-    print(f"Credential for {accname} added successfully.")
+
+
+# =======================================
+# Menuing 
+# =======================================
+
+def clear_screen():
+    subprocess.run("cls", shell=True)
+def menu_separators(style):
+    if style == "Title":
+        print("—" * 40)
+
+    elif style == "MainMenu":
+        print("-—-" * 20)
+def credential_menu(credentials):
+    credential = display_credentials(credentials)
+    while True:
+        print("1: Reveal Password")
+        print("2. Edit Credential")
+        print("3. Delete Credential")
+        print("4. Exit")
+        choice = input("What would you like to do?: ")
+
+        if choice == "1":
+            reveal_password(credential)
+        elif choice == "2":
+            edit_credential(credential)
+        elif choice == "3":
+            delete_credential(credential)
+        elif choice == "4":
+            return
+        else:
+            print("Not a valid option. Try again.")
+            continue
+
+# =======================================
+# Credential Storage
+# =======================================
+
 def save_credential(credentials, key):
     encrypted_accounts = encrypt_credential(credentials, key)
     with open("credentials.enc", "wb") as accounts:
-        accounts.write(encrypted_accounts)   
-def display_credential(credentials):
+        accounts.write(encrypted_accounts)
+def load_credential(key):
+    with open("credentials.enc", "rb") as accounts:
+        encrypted_accounts = accounts.read()
+        credentials = decrypt_credential(encrypted_accounts, key)
+        return credentials
+
+# =======================================
+# View Credential
+# =======================================
+
+def display_credentials(credentials):
     count = 1
     print("Which account would you like to view? ")
     print("0: Exit")
@@ -125,37 +164,74 @@ def display_credential(credentials):
             print("Username: ", selection["username"])
             print("Password: ", "****************")
             print("=" * 20)
-
             return selection
+
         except ValueError:
             print("Not a valid number. Try again.")
             print("=" * 20)
 
         except IndexError:
             print("Account does not exist")
-            print("=" * 20)                
-def reveal_password(credentials):
-   credential = display_credential(credentials)
+            print("=" * 20)      
+    
+def reveal_password(credential):
 
-   if credential is None:
-       return
-   
-   yesno = input("Reveal password? (Y/N): ").lower().strip()
-   if yesno not in ['y' ,'yes']:
-        print("=" * 20)
-        print("Password remaining hidden for privacy")
-        print("=" * 20)
-   else:
-        print("=" * 20)
-        print("Password: ", credential["password"])
-        print("=" * 20)
-def edit_credential(credentials):
-    print("Which account would you like to edit?: ")
+    clear_screen()
     print("=" * 20)
-    credential = display_credential(credentials)
+    print("Account: ", credential["account_name"])
+    print("Website: ", credential["website"])
+    print("Username: ", credential["username"])
+    print("Password: ", credential["password"])
+    print("=" * 20)
+    
 
-    if credential is None:
-        return
+       
+
+
+# =======================================
+# Credential Management
+# =======================================
+def create_credential(credentials):
+    while True:
+        accname = input("What is the name of the account: ")
+        website = input("Name of website for account: ")
+        username = input("Username for account: ")
+        password = input("Password for account: ")
+        confirm_password = input("Confirm password: ")
+        if password == confirm_password is False:
+            print("Password does not match")
+        clear_screen()
+        print(" Account: ", accname)
+        print(" Website: ", website)
+        print("Username: ", username)
+        print("Password: ", password)
+        correct = input("Does everything look correct? Y/N: ").lower().strip()
+        if correct not in ['y', 'yes']:
+            tryagain = input("Do you want to try again? Y/N: ")
+            if tryagain in ['y', 'yes']:
+                continue
+            else:
+                break
+        add_credential(credentials, accname, website, username, password)
+        repeat = input("Add another account? (Y/N): ").lower().strip()
+        if repeat not in ['y', 'yes']:
+            print("Done!")
+            break
+        
+
+    save_credential(credentials, key)
+def confirm_password(credentials):
+    print()
+def add_credential(credentials, accname, website, username, password):
+    credential = {
+        "account_name": accname,
+        "website": website,
+        "username": username,
+        "password": password
+    }
+    credentials.append(credential)
+    print(f"Credential for {accname} added successfully.")
+def edit_credential(credential):
     
     while True: 
         print("1. Account Name")
@@ -219,7 +295,7 @@ def edit_credential(credentials):
 def delete_credential(credentials):
     print("Which account would you like to delete?: ")
     print("=" * 20)
-    credential = display_credential(credentials)
+    credential = display_credentials(credentials)
 
     if credential is None:
         return
@@ -239,58 +315,46 @@ def delete_credential(credentials):
         save_credential(credentials, key)
         print("Account deleted")
         print("=" * 20)
-        return        
-def load_credential(key):
-    with open("credentials.enc", "rb") as accounts:
-        encrypted_accounts = accounts.read()
-        credentials = decrypt_credential(encrypted_accounts, key)
-        return credentials
-
+        return           
+     
 if __name__ == "__main__":
-    print("Welcome to Passy")   
+    clear_screen()
+    print("""
+    ██████╗  █████╗ ███████╗███████╗██╗   ██╗
+    ██╔══██╗██╔══██╗██╔════╝██╔════╝╚██╗ ██╔╝
+    ██████╔╝███████║███████╗███████╗ ╚████╔╝
+    ██╔═══╝ ██╔══██║╚════██║╚════██║  ╚██╔╝
+    ██║     ██║  ██║███████║███████║   ██║
+    ╚═╝     ╚═╝  ╚═╝╚══════╝╚══════╝   ╚═╝
+""")
+    
     authenticated, key, credentials = verify_master_password()
-
     if not authenticated:
         print("Goodbye")
         sys.exit()        
-
+    clear_screen()
     while True:
-        print("1: Add Credential")
+        menu_separators(style="MainMenu")
+        print("1: Add New Credential")
         print("2: View Credentials")
-        print("3: Edit a Credential")
-        print("4: Delete a Credential")
-        print("5: Exit")
+        print("3: Exit")
 
         choice = input("What would you like to do? ")
-        if choice == "1":
-            while True:
-                accname = input("What is the name of the account: ")
-                website = input("Name of website for account: ")
-                username = input("Username for account: ")
-                password = input("Password for account: ")
 
-                add_credential(credentials, accname, website, username, password)
-                repeat = input("Add another account? (Y/N): ").lower().strip()
-                if repeat not in ['y', 'yes']:
-                    print("Done!")
-                    break
-            save_credential(credentials, key)
+        if choice == "1":
+            create_credential(credentials)
+
 
         elif choice == "2":
             try:
-                reveal_password(credentials)
+                credential_menu(credentials)
+                
                 
             except FileNotFoundError:
                 print("No credentials found.")
 
         elif choice == "3":
-            edit_credential(credentials)
-
-        elif choice == "4":
-            delete_credential(credentials)
-                
-        elif choice == "5":
-            break
+            sys.exit()
 
         else:
            again = input("Sorry! Invalid response! Try again? Y/N ").lower().strip()
